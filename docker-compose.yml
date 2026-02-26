@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    container_name: vision_db
+    environment:
+      POSTGRES_USER: vision_user
+      POSTGRES_PASSWORD: vision_password
+      POSTGRES_DB: vision_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vision_user -d vision_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vision_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://vision_user:vision_password@db:5432/vision_db
+      - SECRET_KEY=super_secret_key_for_jwt_2026
+      - MODELS_DIR=/app/models
+      - VIDEOS_DIR=/app/videos
+    volumes:
+      - ./backend:/app
+      - ./models:/app/models
+      - ./videos:/app/videos
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vision_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+
+volumes:
+  postgres_data:
